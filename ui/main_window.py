@@ -60,5 +60,11 @@ class MainWindow(ctk.CTk):
 
     def _show_page(self, key: str):
         """Піднімає потрібну сторінку на передній план."""
-        self.pages[key].tkraise()
+        page = self.pages[key]
+        page.tkraise()
+        # Сторінки, яким треба оновитись при відкритті (звіти, адмін-вхід),
+        # мають метод on_show().
+        on_show = getattr(page, "on_show", None)
+        if callable(on_show):
+            on_show()
         print(f"[nav] Показано сторінку: {key}")

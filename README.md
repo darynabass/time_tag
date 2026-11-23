@@ -13,12 +13,16 @@ The application is being developed in Python and uses SQLite for data storage.
 
 ## Project Structure
 
+```text
 TimeTag/
 ├── database/
 │   └── database.py
 ├── reports/
 │   └── report.py
 ├── services/
+│   ├── controllers/
+│   │   ├── reports_controller.py
+│   │   └── rfid_controller.py
 │   ├── check_admin.py
 │   ├── cli.py
 │   ├── employees.py
@@ -42,7 +46,9 @@ TimeTag/
 ├── README.md
 ├── run.bat
 ├── setup.bat
-└── requirements.txt
+├── requirements.txt
+└──  setup.bat
+```
 
 ## Getting Started
 

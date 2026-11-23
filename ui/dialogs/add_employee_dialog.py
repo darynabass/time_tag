@@ -9,8 +9,13 @@ import customtkinter as ctk
 class AddEmployeeDialog(ctk.CTkToplevel):
     """Модальне вікно додавання нового працівника."""
 
-    def __init__(self, parent):
+    def __init__(self, parent, rfid_controller):
         super().__init__(parent)
+
+        self._rfid_controller = rfid_controller
+        self._card_uid = None
+        self._poll_job = None
+        self._reader_started = False
 
         self.title("Додавання працівника")
         self.geometry("480x460")
@@ -18,6 +23,7 @@ class AddEmployeeDialog(ctk.CTkToplevel):
 
         self.transient(parent)
         self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self._close)
 
         self.configure(fg_color="#ffffff")
 
@@ -120,6 +126,37 @@ class AddEmployeeDialog(ctk.CTkToplevel):
         )
         entry.pack(padx=30)
         return entry
+
+    def _start_rfid_reader(self) -> None:
+        """Start the RFID reader and begin polling for cards."""
+        try:
+            self._rfid_controller.start()
+            self._reader_started = True
+            self._poll_card()
+        except RuntimeError as error:
+            print(f"[error] RFID reader could not start: {error}")
+            self._card_label.configure(
+                text="Помилка запуску зчитувача",
+                text_color="#d92d20",
+            )
+
+    def _poll_card(self) -> None:
+        """Check whether an RFID card has been scanned."""
+        if not self.winfo_exists():
+            return
+
+        card_uid = self._rfid_controller.get_card()
+
+        if card_uid:
+            self._card_uid = card_uid
+            self._card_label.configure(
+                text=f"✓  Картку зчитано: {card_uid}",
+                text_color="#12a150",
+            )
+            print(f"[debug] RFID card detected: {card_uid}")
+            return
+
+        self._poll_job = self.after(100, self._poll_card)
 
     def _on_save(self):
         """Тимчасовий обробник — виводить дані в консоль."""

@@ -9,7 +9,7 @@ from tkinter import filedialog, ttk
 import customtkinter as ctk
 
 from reports.report import REPORT_HEADERS, ReportError, default_report_filename
-from ui.controllers.reports_controller import ReportsController
+from services.controllers.reports_controller import ReportsController
 from ui.dialogs.error_dialog import ErrorDialog
 
 

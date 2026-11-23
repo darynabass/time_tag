@@ -12,8 +12,11 @@ from ui.dialogs.error_dialog import ErrorDialog
 class HomePage(ctk.CTkFrame):
     """Центральна зона: очікування картки + список останніх подій."""
 
-    def __init__(self, master):
+    def __init__(self, master, rfid_controller):
         super().__init__(master, corner_radius=0, fg_color="white")
+
+        self.rfid_controller = rfid_controller
+        self._poll_job = None
 
         # Лічильник для тестування (успіх/помилка по черзі)
         self._sim_counter = 0
@@ -225,3 +228,59 @@ class HomePage(ctk.CTkFrame):
             )
 
         self._sim_counter += 1
+
+    # ------------------------------------------------------------------
+    # RFID-зчитувач
+    # ------------------------------------------------------------------
+
+    def on_show(self):
+        """Запускає RFID-зчитувач при відкритті головної сторінки."""
+
+        try:
+            self.rfid_controller.start()
+            self._poll_card()
+        except RuntimeError as error:
+            self.reader_hint.configure(
+                text="Помилка запуску RFID-зчитувача",
+                text_color="#e74c3c"
+            )
+            print(f"[RFID] {error}")
+
+    def on_hide(self):
+        """Зупиняє RFID-зчитувач при переході на іншу сторінку."""
+
+        if self._poll_job is not None:
+            self.after_cancel(self._poll_job)
+            self._poll_job = None
+
+        self.rfid_controller.stop()
+
+    def _poll_card(self):
+        """Перевіряє наявність нової RFID-картки."""
+
+        uid = self.rfid_controller.get_card()
+
+        if uid:
+            print(f"[RFID] Зчитано картку: {uid}")
+
+            name = "Іваненко О.С."
+            status = "Прихід"
+            time_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+
+            self._events.insert(0, {
+                "name": name,
+                "status": status,
+                "time": time_str,
+            })
+
+            self._events = self._events[:5]
+            self._render_events()
+
+            SuccessDialog(
+                parent=self.winfo_toplevel(),
+                name=name,
+                status=status,
+                time=time_str,
+            )
+
+        self._poll_job = self.after(100, self._poll_card)

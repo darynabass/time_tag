@@ -23,8 +23,14 @@ class AdminPage(ctk.CTkFrame):
     # Фейковий працівник для тестування «Редагувати» та «Видалити»
     SAMPLE_EMPLOYEE = "Іваненко О.С."
 
-    def __init__(self, master):
+    def __init__(self, master, rfid_controller):
         super().__init__(master, corner_radius=0, fg_color="white")
+
+        self.rfid_controller = rfid_controller
+        self._poll_job = None
+        self._is_authorized = False
+        self._admin = None
+        self._setup_mode = False
 
         self._is_authorized = False
         self._admin = None  # дані адміністратора після входу
@@ -259,6 +265,49 @@ class AdminPage(ctk.CTkFrame):
         """Викликається головним вікном при відкритті сторінки."""
         if not self._is_authorized:
             self._refresh_login_mode()
+            self._start_rfid_polling()
+
+
+    def on_hide(self):
+        """Зупиняє зчитування, коли користувач залишає сторінку."""
+        if self._poll_job is not None:
+            self.after_cancel(self._poll_job)
+            self._poll_job = None
+
+        self.rfid_controller.stop()
+
+
+    def _start_rfid_polling(self):
+        """Запускає зчитувач і перевірку карток."""
+        if self._poll_job is not None:
+            return
+
+        try:
+            self.rfid_controller.start()
+            self._poll_card()
+        except RuntimeError as exc:
+            print(f"Помилка RFID: {exc}")
+
+
+    def _poll_card(self):
+        """Перевіряє, чи була піднесена картка."""
+        if self._is_authorized:
+            return
+
+        uid = self.rfid_controller.get_card()
+
+        if uid:
+            if self._setup_mode:
+                self._setup_card_entry.delete(0, "end")
+                self._setup_card_entry.insert(0, uid)
+                self._on_setup_submitted()
+            else:
+                self._card_entry.delete(0, "end")
+                self._card_entry.insert(0, uid)
+                self._on_card_submitted()
+
+        if not self._is_authorized:
+            self._poll_job = self.after(100, self._poll_card)
 
     def _refresh_login_mode(self):
         """Показує звичайний вхід або (якщо адміністратора ще немає) форму створення."""
@@ -267,6 +316,8 @@ class AdminPage(ctk.CTkFrame):
         except AdminAccessError:
             # База недоступна: покажемо звичайний вхід, помилка з'явиться при спробі входу.
             setup_needed = False
+
+        self._setup_mode = setup_needed
 
         if setup_needed:
             self._login_box.grid_forget()
@@ -285,6 +336,13 @@ class AdminPage(ctk.CTkFrame):
         """Відкриває адмін-панель після успішної авторизації."""
         self._admin = admin
         self._is_authorized = True
+
+        if self._poll_job is not None:
+            self.after_cancel(self._poll_job)
+            self._poll_job = None
+
+        self.rfid_controller.stop()
+
         self._login_error.configure(text="")
         self._setup_error.configure(text="")
         self._admin_label.configure(text=f"Адміністратор: {admin['full_name']}")
@@ -328,6 +386,8 @@ class AdminPage(ctk.CTkFrame):
         self._login_view.grid(row=0, column=0, sticky="nsew")
         self._refresh_login_mode()
 
+        self._start_rfid_polling()
+
     # ------------------------------------------------------------------
     #  Відкриття діалогів
     # ------------------------------------------------------------------
@@ -340,7 +400,10 @@ class AdminPage(ctk.CTkFrame):
         return self.winfo_toplevel()
 
     def _open_add_dialog(self):
-        AddEmployeeDialog(self._get_parent_window())
+        AddEmployeeDialog(
+            self._get_parent_window(),
+            self.rfid_controller
+        )
 
     def _open_edit_dialog(self):
         EditEmployeeDialog(

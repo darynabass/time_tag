@@ -10,6 +10,8 @@ from ui.pages.home_page import HomePage
 from ui.pages.reports_page import ReportsPage
 from ui.pages.admin_page import AdminPage
 
+from services.controllers.rfid_controller import RFIDController
+
 
 class MainWindow(ctk.CTk):
     """Головне вікно програми."""
@@ -23,6 +25,10 @@ class MainWindow(ctk.CTk):
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
+
+        # RFID Controller
+        self.rfid_controller = RFIDController()
+        self.current_page = None
 
         # --- Ліва панель ---
         self.sidebar = Sidebar(self, on_navigate=self._on_navigate)
@@ -38,15 +44,17 @@ class MainWindow(ctk.CTk):
         # Усі вони лежать в одній комірці (0,0) одна на одній.
         # Показ потрібної — через tkraise().
         self.pages = {
-            "home": HomePage(self.content),
+            "home": HomePage(self.content, self.rfid_controller),
             "reports": ReportsPage(self.content),
-            "admin": AdminPage(self.content),
+            "admin": AdminPage(self.content, self.rfid_controller),
         }
         for page in self.pages.values():
             page.grid(row=0, column=0, sticky="nsew")
 
         # За замовчуванням — головна
         self._show_page("home")
+
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ------------------------------------------------------------------
     #  Навігація
@@ -60,11 +68,28 @@ class MainWindow(ctk.CTk):
 
     def _show_page(self, key: str):
         """Піднімає потрібну сторінку на передній план."""
+
+        if self.current_page is not None:
+            on_hide = getattr(self.current_page, "on_hide", None)
+            if callable(on_hide):
+                on_hide()
+
         page = self.pages[key]
         page.tkraise()
-        # Сторінки, яким треба оновитись при відкритті (звіти, адмін-вхід),
-        # мають метод on_show().
+        self.current_page = page
+
         on_show = getattr(page, "on_show", None)
         if callable(on_show):
             on_show()
+
         print(f"[nav] Показано сторінку: {key}")
+
+    def _on_close(self):
+        """Зупиняє RFID-зчитувач перед закриттям програми."""
+
+        if self.current_page is not None:
+            on_hide = getattr(self.current_page, "on_hide", None)
+            if callable(on_hide):
+                on_hide()
+
+        self.destroy()
